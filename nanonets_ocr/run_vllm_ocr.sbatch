@@ -16,6 +16,8 @@ MODELS_DIR=
 DATA_DIR=
 
 input_dir=$1
+batch_size=$2
+echo "Running vLLM OCR with batch size $batch_size."
 
 OUTPUT_DIR=$SCRIPT_DIR/output/$input_dir
 mkdir -p $OUTPUT_DIR
@@ -31,4 +33,4 @@ srun \
     -B $DATA_DIR:/data,$OUTPUT_DIR:/output,$SCRIPT_DIR:/script,$MODELS_DIR:/models \
     --pwd /script \
     $CONTAINER \
-      python3 ocr_with_vllm.py --workers=$workers --skip_existing
+      python3 ocr_with_vllm.py --batch_size=$batch_size --skip_existing

@@ -11,45 +11,65 @@ PROMPT_INSTRUCTION = "Extract the text from the above document as if you were re
 MODEL_PATH = "/models/Nanonets-OCR-s"
 
 
-# Function to send an image to Gemini and get a response
-def send_image_to_model(image, prompt, model, sampling_params):
+class BatchPredictor:
+    def __init__(self, batch_size):
+        self.model = LLM(MODEL_PATH)
+        self.sampling_params = SamplingParams(temperature=0.0, max_tokens=16000)
+        self.batch = {"output_files": [], "messages": []}
+
+        self.batch_size = batch_size
+
+    def add_to_batch(self, message, output_file):
+        self.batch["messages"].append(message)
+        self.batch["output_files"].append(output_file)
+
+        if len(self.batch["output_files"]) == self.batch_size:
+            self.predict_on_batch()
+
+    def predict_on_batch(self):
+        if self.batch["output_files"] == []:
+            return
+
+        outputs = self.model.chat(
+            self.batch["messages"],
+            sampling_params=self.sampling_params
+        )
+
+        for output_file, output in zip(self.batch["output_files"], outputs):
+            with open(output_file, "w") as f_out:
+                f_out.write(output.outputs[0].text)
+
+        self.batch = {"output_files": [], "messages": []}
+
+
+def get_page_prompt(image):
     """
-    Sends an image to the Gemini API and retrieves the generated content.
+    Creates the prompt for the model, that is added to the current batch
 
     Args:
-        image (PIL.Image.Image): The image to send to Gemini.
-        prompt (str): The text prompt to accompany the image.
-        client (openai.OpenAI): OpenAI client containing the vision model
+        image: base64 encoded image
     Returns:
-        str: The generated text from Gemini, or None on error.
+        list: The input conversation for the model
     """
-    try:
-        image_data = {
-            "type": "image_url",
-            "image_url": {
-                "url": "data:image/webp;base64,{}".format(image),
-            }
+    image_data = {
+        "type": "image_url",
+        "image_url": {
+            "url": "data:image/webp;base64,{}".format(image),
         }
+    }
 
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    image_data
-                ],
-            }
-        ]
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": PROMPT_INSTRUCTION},
+                image_data
+            ],
+        }
+    ]
 
-        outputs = model.chat([messages], sampling_params=sampling_params)
-        generated_text = outputs[0].outputs[0].text
-
-        return generated_text
-
-    except Exception as e:
-        print(f"Error sending image to the model: {e}")
-        return None
+    return messages
 
 
 def get_images_from_pdf(pdf_path, dpi):
@@ -78,17 +98,13 @@ def process_pdf(args):
         pdf_path (str): The path to the PDF file.
         output_path (str): The path to the directory where each page will be stored as separate MD file.
     """
-    pdf_path, output_path, skip_existing, model_refs = args
+    pdf_path, output_path, skip_existing, batch_predictor = args
 
-    if os.path.exists(output_path):
+    if os.path.exists(output_path) and len(os.listdir(output_path)) > 0:
         if skip_existing:
             return
     else:
-        os.makedirs(output_path)
-
-    model = model_refs["model"]
-    sampling_params = model_refs["sampling_params"]
-    prompt = model_refs["prompt"]
+        os.makedirs(output_path, exist_ok=True)
 
     try:
         page_images = get_images_from_pdf(pdf_path, DPI)
@@ -97,9 +113,9 @@ def process_pdf(args):
 
         for page_num, image in enumerate(page_images):
             if image:
-                model_response = send_image_to_model(image, prompt, model, sampling_params)
-                with open(os.path.join(output_path, f"page_{page_num + 1}.md"), "w") as f_out:
-                    f_out.write(model_response)
+                prompt_conversation = get_page_prompt(image)
+                output_file = os.path.join(output_path, f"page_{page_num + 1}.md")
+                batch_predictor.add_to_batch(prompt_conversation, output_file)
             else:
                 print(f"Failed to convert page {page_num + 1} to image.")
 
@@ -109,43 +125,34 @@ def process_pdf(args):
         print(f"An unexpected error occurred: {e}")
 
 
-def worker_init(model_dict):
-    if model_dict is None:
-        model_dict = create_model_dict()
-
-    global model_refs
-    model_refs = model_dict
-
-
-def create_model_dict():
-    prompt = PROMPT_INSTRUCTION
-    model = LLM(MODEL_PATH, dtype="bfloat16")
-    sampling_params = SamplingParams(temperature=0.0, max_tokens=32000)
-
-    return {"model": model, "sampling_params": sampling_params, "prompt": prompt}
-
-
-def main(skip_existing):
+def main(batch_size, skip_existing):
     input_dir = "/data"
     output_dir = "/output"
 
     document_list = os.listdir(input_dir)
+    n_documents = len(document_list)
 
-    model_refs = create_model_dict()
+    batch_predictor = BatchPredictor(batch_size)
 
     for i, document in enumerate(document_list):
+        print(f"Processing document {i + 1} of {n_documents}")
+
         document_name = document.removesuffix(".pdf")
         task_args = (
-            os.path.join(input_dir, document), os.path.join(output_dir, document_name),
-            skip_existing,
-            model_refs
-        )
+        os.path.join(input_dir, document), os.path.join(output_dir, document_name), skip_existing, batch_predictor)
         process_pdf(task_args)
+
+    # Process last batch, that can be incomplete
+    batch_predictor.predict_on_batch()
+
+    print("Done!")
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--batch_size", type=int, required=True,
+                        help="Number of pages to be processed at once by the model.")
     parser.add_argument("--skip_existing", action="store_true",
                         help="If given, files whose output dirs exists will be skipped.")
     args = parser.parse_args()
-    main(args.skip_existing)
+    main(args.batch_size, args.skip_existing)
