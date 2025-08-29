@@ -3,6 +3,10 @@ import os
 from io import BytesIO
 import base64
 from argparse import ArgumentParser
+import math
+
+import PIL
+PIL.Image.MAX_IMAGE_PIXELS = 179487365
 
 from vllm import LLM, SamplingParams
 
@@ -12,8 +16,8 @@ MODEL_PATH = "/models/Nanonets-OCR-s"
 
 
 class BatchPredictor:
-    def __init__(self, batch_size):
-        self.model = LLM(MODEL_PATH)
+    def __init__(self, batch_size, tp_size):
+        self.model = LLM(MODEL_PATH, tensor_parallel_size=tp_size)
         self.sampling_params = SamplingParams(temperature=0.0, max_tokens=16000)
         self.batch = {"output_files": [], "messages": []}
 
@@ -125,14 +129,25 @@ def process_pdf(args):
         print(f"An unexpected error occurred: {e}")
 
 
-def main(batch_size, skip_existing):
+def main(batch_size, skip_existing, n_chunks, chunk_index, tp_size):
     input_dir = "/data"
     output_dir = "/output"
 
-    document_list = os.listdir(input_dir)
+    document_list = [document for document in os.listdir(input_dir) if document.endswith(".pdf")]
     n_documents = len(document_list)
 
-    batch_predictor = BatchPredictor(batch_size)
+    if n_chunks > 1:
+        document_list.sort()
+        chunk_size = int(math.ceil(n_documents / n_chunks))
+        start_index = chunk_index * chunk_size
+        print("Chunk start index:", start_index)
+        end_index = min(start_index + chunk_size, n_documents)
+        print("Chunk end index:", end_index)
+
+        document_list = document_list[start_index:end_index]
+        n_documents = end_index - start_index
+
+    batch_predictor = BatchPredictor(batch_size, tp_size)
 
     for i, document in enumerate(document_list):
         print(f"Processing document {i + 1} of {n_documents}")
@@ -154,5 +169,9 @@ if __name__ == "__main__":
                         help="Number of pages to be processed at once by the model.")
     parser.add_argument("--skip_existing", action="store_true",
                         help="If given, files whose output dirs exists will be skipped.")
+    parser.add_argument("--n_chunks", type=int, default=1, help="Number of chunks to separate input data into.")
+    parser.add_argument("--chunk_index", type=int, default=0,
+                        help="Index of the chunk to be processed. Should be integer between 0 and n_chunks-1.")
+    parser.add_argument("--tp_size", type=int, default=1, help="Number of GPUs to split model across.")
     args = parser.parse_args()
-    main(args.batch_size, args.skip_existing)
+    main(args.batch_size, args.skip_existing, args.n_chunks, args.chunk_index, args.tp_size)
