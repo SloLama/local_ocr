@@ -4,6 +4,7 @@ This repository contains tools and scripts to perform **Optical Character Recogn
 
 - **nanonets_ocr**: OCR using Nanonets-OCR model
 - **llama4_ocr**: OCR using a local OpenAI compatible Llama 4 Maverick vLLM server
+- **chatgpt_ocr**: OCR using GPT-4o model
 - **postprocess_markdown**: Classification of OCR-ed Markdown pages and merging them into a single document
 
 ---
@@ -83,6 +84,54 @@ python llama4_ocr/ocr_with_local_server.py --workers 4 --skip_existing
 **Important:** Before running the script, set the `BASE_URL` variable in the script to the address of the server, printed by `run_server.sh` script.
 
 To run the OCR on SLURM cluster, see `run_ocr.sbatch` script.
+
+---
+
+## GPT-4o OCR
+
+This script uses OpenAI’s gpt-4o model to perform OCR directly on PDF pages. Each page is rendered at 192 dpi, converted to WEBP, and sent to the API. The outputs are saved as a single text file.
+
+Here's a polished version of your README section for GitHub:
+
+---
+
+### 📄 Chatbot OCR on PDF (GPT-4o)
+
+This script uses OpenAI’s [gpt-4o](https://platform.openai.com/gpt-4o) model to perform OCR directly on PDF pages. Each page is rendered at 192 dpi, converted to WEBP format, and sent to the API. The outputs are saved as a single text file with page headers separating the content.
+
+---
+
+### 🔧 Usage
+
+```bash
+python chatgpt_ocr/chatgpt_ocr.py <file.pdf>
+```
+
+---
+
+### Arguments
+
+- `--workers`:
+  - **Type**: `str`
+  - **Required**: Yes
+  - **Description**: Path to the PDF file to process.
+
+---
+
+### Output
+
+A single text file named `<file>_chatgpt.txt` is generated, containing:
+
+- All extracted text from each page.
+- Page headers included to separate content.
+
+---
+
+### ⚠️ Notes
+
+- **API Key Requirement**: An `API_KEY` variable must be set in the script.
+- **Page Processing**: Each page is processed independently.
+- **Formatting**: Markdown and other formatting are stripped for evaluation purposes.
 
 ---
 
