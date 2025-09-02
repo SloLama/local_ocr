@@ -5,6 +5,7 @@ This repository contains tools and scripts to perform **Optical Character Recogn
 - **nanonets_ocr**: OCR using Nanonets-OCR model
 - **llama4_ocr**: OCR using a local OpenAI compatible Llama 4 Maverick vLLM server
 - **chatgpt_ocr**: OCR using GPT-4o model
+- **tesseract_ocr**: Tesseract OCR (+ optional ChatGPT postprocessing)
 - **postprocess_markdown**: Classification of OCR-ed Markdown pages and merging them into a single document
 
 ---
@@ -95,13 +96,13 @@ Here's a polished version of your README section for GitHub:
 
 ---
 
-### 📄 Chatbot OCR on PDF (GPT-4o)
+### Chatbot OCR on PDF (GPT-4o)
 
 This script uses OpenAI’s [gpt-4o](https://platform.openai.com/gpt-4o) model to perform OCR directly on PDF pages. Each page is rendered at 192 dpi, converted to WEBP format, and sent to the API. The outputs are saved as a single text file with page headers separating the content.
 
 ---
 
-### 🔧 Usage
+### Usage
 
 ```bash
 python chatgpt_ocr/chatgpt_ocr.py <file.pdf>
@@ -134,6 +135,48 @@ A single text file named `<file>_chatgpt.txt` is generated, containing:
 - **Formatting**: Markdown and other formatting are stripped for evaluation purposes.
 
 ---
+
+## **Tesseract OCR**
+
+This Python script performs Optical Character Recognition (OCR) on PDF pages using **Tesseract**, with a specific focus on the **Slovene language**.  Optionally, the recognized text can be sent to **OpenAI's gpt-4o** for correction and improved accuracy.
+
+-----
+
+### **Usage**
+
+To run the script, use the following command in your terminal:
+
+```bash
+python tesseract_ocr/tesseract_OCR.py <file.pdf>
+```
+
+-----
+
+### **Arguments**
+
+  - `<file.pdf>`
+      - **Type**: `str`
+      - **Required**: Yes
+      - **Description**: The file path to the input PDF document you want to process.
+
+-----
+
+### **Outputs**
+
+The script generates two output files in the same directory as the input PDF:
+
+  - `<file>_raw.txt`
+      - Contains the raw text output from the Tesseract OCR process.
+  - `<file>_LLM.txt`
+      - Contains the OCR text that has been corrected by ChatGPT. This file is only generated if the **ChatGPT postprocessing** is enabled.
+
+-----
+
+### ⚠️ Notes
+
+  - **Tesseract Installation**: You need to have Tesseract installed on your system. Make sure the Slovene language pack (`tesseract-ocr-slv`) is also installed for proper functionality.
+  - **Rendering Resolution**: The default rendering resolution for the PDF pages can be adjusted within the script. A resolution of **192 dpi** is generally recommended for optimal results.
+  - **API Key**: An **OpenAI API key** is only required if you choose to use the ChatGPT postprocessing feature to correct the OCR text.
 
 ## Postprocess Markdown
 
@@ -234,6 +277,10 @@ domen.vres@fri.uni-lj.si
 
 ## **Acknowledgements**
 
-The framework was developed within the [PoVeJMo](https://www.cjvt.si/povejmo/en/project/) research program (Adaptive Natural Language Processing with Large Language Models), particularly within the research project titled SloLLaMai -- Open-access computationally efficient models for Slovenian. The program is funded within the Recovery and Resilience Plan by the Slovenian Research and Innovation Agency (ARIS) and NextGenerationEU. The authors also acknowledge the financial support from the Slovenian Research and Innovation Agency (research core funding No. P6-0411 -- Language Resources and Technologies for Slovene).
+The framework was developed within the following research  research programmes:
+- [PoVeJMo](https://www.cjvt.si/povejmo/en/project/) (Adaptive Natural Language Processing with Large Language Models), particularly within the research project titled SloLLaMai -- Open-access computationally efficient models for Slovenian. The program is funded within the Recovery and Resilience Plan by the Slovenian Research and Innovation Agency (ARIS) and NextGenerationEU.
+- [LLM4DH](https://www.cjvt.si/llm4dh/en/project/) (Large Language Models for Digital Humanities). The programme is founded by the Slovenian Research and Innovation Agency.
+
+The authors also acknowledge the financial support from the Slovenian Research and Innovation Agency (research core funding No. P6-0411 -- Language Resources and Technologies for Slovene).
 
 ---
